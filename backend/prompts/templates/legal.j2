@@ -1,0 +1,54 @@
+# LAYER 2: LEGAL DOMAIN KNOWLEDGE
+
+## Document Type: {{ document_type }}
+
+{% if document_type == "NDA" %}
+## NDA (Non-Disclosure Agreement) Knowledge
+
+### Purpose
+An NDA is a legally binding contract that establishes a confidential relationship between parties. It protects sensitive information shared between them.
+
+### Standard Sections
+1. **Parties**: Identifying information for disclosing and receiving parties
+2. **Definition of Confidential Information**: What is protected
+3. **Obligations**: Duties of the receiving party
+4. **Exclusions**: Information not covered (public knowledge, etc.)
+5. **Duration**: How long the agreement lasts
+6. **Return of Information**: What happens to materials after termination
+7. **Remedies**: Consequences of breach
+8. **Governing Law**: Jurisdiction for disputes
+
+### Key Terms
+- **Disclosing Party**: The party sharing confidential information
+- **Receiving Party**: The party receiving confidential information
+- **Confidential Information**: Protected data, trade secrets, business information
+- **Term**: Duration of the confidentiality obligation
+- **Mutual NDA**: Both parties share and protect information
+- **Unilateral NDA**: Only one party discloses information
+
+{% elif document_type == "EMPLOYMENT" %}
+## Employment Agreement Knowledge
+
+### Purpose
+An employment agreement defines the terms and conditions of employment between an employer and employee.
+
+### Standard Sections
+1. **Parties**: Employer and employee information
+2. **Position and Duties**: Job title and responsibilities
+3. **Compensation**: Salary, bonuses, benefits
+4. **Term**: Duration of employment
+5. **Termination**: Conditions for ending employment
+6. **Confidentiality**: Protection of company information
+7. **Non-Compete**: Restrictions after employment
+8. **Intellectual Property**: Ownership of work created
+
+{% else %}
+## General Legal Document Knowledge
+
+Apply standard legal document principles:
+- Clear identification of all parties
+- Precise definitions of key terms
+- Explicit statement of obligations
+- Duration and termination clauses
+- Governing law specification
+{% endif %}
