@@ -2,6 +2,9 @@
 
 A conversational AI system for generating legal documents using advanced prompt engineering techniques.
 
+<img width="1511" height="1307" alt="image" src="https://github.com/user-attachments/assets/6f2199fe-e786-4779-8762-d63f2c3b686b" />
+
+
 ## Features
 
 - **Conversational Interface**: Natural dialogue for gathering document requirements
