@@ -91,7 +91,9 @@ prompts/
 |-----------|----------------|---------|
 | **Chain-of-Thought Scaffolding** | `templates/phases/generation.j2` | Force model to reason through requirements before generating |
 | **Reflection Pattern** | `patterns/reflection.py` | Self-consistency checking and output validation |
-| **Selective Reflection** | `SECTION_CONFIG` | Apply reflection only to critical sections |
+| **Selective Reflection** | `CRITICAL_SECTIONS_BY_DOCTYPE` | Apply reflection only to critical sections, varies by document type |
+| **User-Controlled Reflection** | `generation.j2` | User triggers reflection with keywords like "high quality", "thorough" |
+| **Dynamic Document Types** | `state.py` | Support for NDA, EMPLOYMENT, SERVICE, LEASE with type-specific fields |
 | **Prompt Chaining** | Section-by-section generation | Break complex documents into validated steps |
 
 #### Chain-of-Thought Implementation
@@ -317,23 +319,38 @@ Not all sections need the same level of scrutiny. Boilerplate sections (header, 
 
 **Modified Approach:**
 ```python
-SECTION_CONFIG = {
-    # Simple sections - direct generation
-    "header": {"use_reflection": False},
-    "parties": {"use_reflection": False},
-    "signatures": {"use_reflection": False},
-
-    # Critical sections - with reflection
-    "confidential_info": {"use_reflection": True, "max_steps": 3},
-    "obligations": {"use_reflection": True, "max_steps": 3},
-    "remedies": {"use_reflection": True, "max_steps": 2},
+# Dynamic configuration by document type
+CRITICAL_SECTIONS_BY_DOCTYPE = {
+    "NDA": {
+        "critical": ["confidential_info", "obligations", "exclusions", "remedies"],
+        "max_steps": {"confidential_info": 3, "obligations": 3, "exclusions": 2, "remedies": 2}
+    },
+    "EMPLOYMENT": {
+        "critical": ["compensation", "termination", "non_compete", "intellectual_property"],
+        "max_steps": {"compensation": 2, "termination": 3, "non_compete": 3, "intellectual_property": 2}
+    },
+    "SERVICE": {
+        "critical": ["scope_of_work", "payment_terms", "liability", "termination"],
+        "max_steps": {"scope_of_work": 3, "payment_terms": 2, "liability": 3, "termination": 2}
+    },
+    "LEASE": {
+        "critical": ["rent_terms", "maintenance", "termination", "security_deposit"],
+        "max_steps": {"rent_terms": 2, "maintenance": 2, "termination": 3, "security_deposit": 2}
+    }
 }
+
+def get_section_config(section_type: str, document_type: str) -> dict:
+    """Dynamically determine if section needs reflection based on document type"""
+    doc_config = CRITICAL_SECTIONS_BY_DOCTYPE.get(document_type, {})
+    critical_sections = doc_config.get("critical", [])
+    return {"use_reflection": section_type in critical_sections, ...}
 ```
 
 **Results:**
 - ✅ Generation time reduced: 45s → 25s (44% improvement)
 - ✅ Quality maintained on critical sections
 - ✅ Better user experience
+- ✅ Different document types have appropriate critical sections
 - API calls reduced: 26 → 14-18 (best/typical case)
 
 ---
@@ -394,6 +411,51 @@ After completing your analysis, generate the document.
 - ✅ Reduced logical inconsistencies
 - ✅ Model self-catches issues during reasoning
 - Trade-off: ~15% more tokens in generation phase
+
+---
+
+### Iteration 7: User-Controlled Reflection
+
+**Original Approach:**
+```python
+# Reflection always applied to critical sections
+if section_type in CRITICAL_SECTIONS:
+    use_reflection = True
+```
+
+**Problem Observed:**
+- Users couldn't control quality vs speed tradeoff
+- Simple documents took as long as complex ones
+- No way to request "quick" generation
+
+**Hypothesis:**
+Users should be able to explicitly request higher quality when needed, with fast generation as default.
+
+**Modified Approach:**
+```
+## CRITICAL: use_reflection Parameter Rules
+
+**DEFAULT IS FALSE.** Only set `use_reflection: true` if the user's message contains these EXACT phrases:
+- "high quality"
+- "thorough"
+- "comprehensive"
+- "review carefully"
+- "double-check"
+- "best possible"
+
+**EXAMPLES:**
+User: "Create an NDA for TechCorp and InnovateLab"
+→ use_reflection: FALSE (no quality keywords)
+
+User: "Create a HIGH QUALITY NDA for TechCorp"
+→ use_reflection: TRUE (contains "high quality")
+```
+
+**Results:**
+- ✅ Users control quality vs speed
+- ✅ Default fast generation for standard requests
+- ✅ High quality available on demand
+- ✅ Clear trigger words documented
 
 ---
 

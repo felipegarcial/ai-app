@@ -33,9 +33,11 @@ The Legal Document Generation System is a conversational AI application that ass
 
 - **Conversational Interface**: Natural dialogue for gathering requirements
 - **Multi-Phase Workflow**: Intake → Clarification → Generation → Revision
-- **Selective Reflection**: Quality assurance on critical document sections
-- **Real-time Streaming**: Token-by-token response delivery
-- **Function Calling**: Structured data extraction and validation
+- **Multiple Document Types**: NDA, Employment, Service, Lease agreements
+- **User-Controlled Reflection**: Quality assurance triggered by keywords ("high quality", "thorough")
+- **Real-time Streaming**: Token-by-token response delivery via SSE
+- **Function Calling**: Structured data extraction and validation (6 tools)
+- **Document Export**: Word (.docx) and PDF generation
 
 ---
 
@@ -108,16 +110,17 @@ The Legal Document Generation System is a conversational AI application that ass
 
 | Component | Responsibility |
 |-----------|----------------|
-| **routes.py** | HTTP endpoints, request/response handling |
-| **service.py** | Business logic, orchestration |
-| **state.py** | Conversation state management |
-| **composer.py** | Jinja2 prompt composition |
-| **templates/** | Prompt templates (4 layers) |
-| **patterns/** | Advanced techniques (Reflection) |
-| **schemas.py** | Function calling definitions |
-| **handlers.py** | Function execution logic |
-| **validation.py** | Schema validation & fallback extraction |
-| **llm.py** | OpenAI API client |
+| **features/chat/routes.py** | Chat HTTP endpoints, SSE streaming |
+| **features/chat/service.py** | Chat business logic, multi-turn tool calling |
+| **features/chat/state.py** | Conversation state, dynamic fields by document type |
+| **features/export/routes.py** | Document export (Word, PDF, preview) |
+| **prompts/composer.py** | Jinja2 prompt composition |
+| **prompts/templates/** | Prompt templates (4 layers) |
+| **prompts/patterns/** | Advanced techniques (Reflection, CoT) |
+| **tools/schemas.py** | Function calling definitions (6 tools) |
+| **tools/handlers.py** | Function execution logic |
+| **tools/validation.py** | Schema validation & fallback extraction |
+| **llm.py** | OpenAI API client with retry logic |
 
 ---
 
@@ -251,7 +254,20 @@ Multi-Turn Tool Calling Loop:
                     └───────────────────────┘
 ```
 
-### 3.3 Phase State Machine
+### 3.3 Supported Document Types
+
+The system supports multiple document types with type-specific required fields:
+
+| Document Type | Required Fields | Critical Sections (Reflection) |
+|---------------|-----------------|-------------------------------|
+| **NDA** | party_a_name, party_b_name, confidential_info_type, duration, governing_law | confidential_info, obligations, exclusions, remedies |
+| **EMPLOYMENT** | employer_name, employee_name, job_title, job_duties, salary, start_date, governing_law | compensation, termination, non_compete, intellectual_property |
+| **SERVICE** | service_provider_name, client_name, scope_of_services, payment_terms, duration, governing_law | scope_of_work, payment_terms, liability, termination |
+| **LEASE** | landlord_name, tenant_name, property_address, rent_amount, lease_duration, security_deposit, governing_law | rent_terms, maintenance, termination, security_deposit |
+
+When the document type is detected via `analyze_request`, the state automatically updates to track the correct required fields.
+
+### 3.4 Phase State Machine
 
 ```
                     ┌─────────────────┐
@@ -319,8 +335,24 @@ Multi-Turn Tool Calling Loop:
 | POST | `/api/generate-section` | Generate single section |
 | POST | `/api/generate-document` | Generate full document (SSE) |
 | POST | `/api/generate-document-sync` | Generate full document (sync) |
+| POST | `/api/export/docx` | Export document as Word (.docx) |
+| POST | `/api/export/pdf` | Export document as PDF |
+| POST | `/api/export/preview` | Get document preview (HTML/markdown) |
 
-### 4.2 Request/Response Examples
+### 4.2 Function Calling Tools
+
+The system uses 6 tools for structured interactions:
+
+| Tool | Purpose | Key Parameters |
+|------|---------|----------------|
+| `analyze_request` | Detect document type and intent | `document_type`, `intent`, `confidence` |
+| `extract_structured_data` | Extract typed data from conversation | `party_a`, `party_b`, `duration`, etc. |
+| `validate_completeness` | Check if ready to generate | `is_complete`, `missing_required` |
+| `generate_document_section` | Generate one section | `section_type`, `content` |
+| `generate_full_document` | Generate complete document | `document_type`, `content`, `use_reflection` |
+| `apply_revision` | Modify existing document | `target_section`, `revised_text` |
+
+### 4.3 Request/Response Examples
 
 **Chat Request:**
 ```json
@@ -359,7 +391,7 @@ POST /api/generate-document-sync
 }
 ```
 
-### 4.3 SSE Event Types
+### 4.4 SSE Event Types
 
 #### Chat Stream Events (`/api/chat/stream`)
 
@@ -383,7 +415,7 @@ POST /api/generate-document-sync
 
 ---
 
-## 4.4 Structured Output Enforcement
+## 4.5 Structured Output Enforcement
 
 The system implements robust structured output handling with multiple fallback layers:
 

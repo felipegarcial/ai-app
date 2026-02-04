@@ -1,6 +1,6 @@
 # Legal Document Generation System
 
-A conversational AI system for generating legal documents (NDAs) using advanced prompt engineering techniques.
+A conversational AI system for generating legal documents using advanced prompt engineering techniques.
 
 ## Features
 
@@ -10,15 +10,19 @@ A conversational AI system for generating legal documents (NDAs) using advanced 
 - **Reflection Pattern**: Self-consistency checking for critical document sections
 - **Real-time Streaming**: SSE-based token-by-token response delivery
 - **Function Calling**: Structured data extraction and validation
+- **Document Export**: PDF, Word, and TXT export options
 
 ## Tech Stack
 
 | Component | Technology |
 |-----------|------------|
-| Backend | Python 3.9+ / Flask |
-| LLM | OpenAI GPT-4o |
-| Templating | Jinja2 |
-| Streaming | Server-Sent Events (SSE) |
+| **Backend** | Python 3.9+ / Flask |
+| **Frontend** | React 19 / TypeScript |
+| **State Management** | Zustand |
+| **Styling** | Tailwind CSS |
+| **LLM** | OpenAI GPT-4o |
+| **Templating** | Jinja2 |
+| **Streaming** | Server-Sent Events (SSE) |
 
 ## Project Structure
 
@@ -27,27 +31,45 @@ legal_ai/
 ├── backend/
 │   ├── app.py                 # Flask application entry point
 │   ├── config.py              # Configuration management
-│   ├── llm.py                 # OpenAI client wrapper
+│   ├── llm.py                 # OpenAI client wrapper with retry logic
 │   │
 │   ├── features/
-│   │   └── chat/              # Chat feature
-│   │       ├── routes.py      # API endpoints
-│   │       ├── service.py     # Business logic
-│   │       └── state.py       # Conversation state
+│   │   ├── chat/              # Chat feature
+│   │   │   ├── routes.py      # API endpoints (REST + SSE)
+│   │   │   ├── service.py     # Business logic + tool calling
+│   │   │   └── state.py       # Conversation state management
+│   │   └── export/            # Document export (PDF, DOCX)
+│   │       └── routes.py
 │   │
 │   ├── prompts/
 │   │   ├── composer.py        # Jinja2 prompt composition
-│   │   ├── templates/         # Prompt templates
+│   │   ├── templates/         # Prompt templates (4 layers)
 │   │   │   ├── base.j2        # Layer 1: Meta-system
 │   │   │   ├── legal.j2       # Layer 2: Legal domain
 │   │   │   └── phases/        # Layer 3: Phase-specific
 │   │   └── patterns/
-│   │       └── reflection.py  # Reflection pattern
+│   │       ├── chain_of_thought.py  # CoT scaffolding
+│   │       └── reflection.py        # Generate-reflect loop
 │   │
 │   └── tools/
-│       ├── schemas.py         # Function definitions
-│       ├── handlers.py        # Function execution
+│       ├── schemas.py         # Function definitions (JSON Schema)
+│       ├── handlers.py        # Function execution logic
 │       └── validation.py      # Schema validation & fallback
+│
+├── frontend/
+│   ├── src/
+│   │   ├── app/               # Main App component + layout
+│   │   ├── features/
+│   │   │   ├── chat/          # Chat UI + streaming hook
+│   │   │   ├── document/      # Document preview + export
+│   │   │   └── session/       # Session state + sidebar
+│   │   └── shared/
+│   │       ├── api/           # API client + SSE streaming
+│   │       ├── components/    # UI components (shadcn/ui)
+│   │       └── hooks/         # Custom React hooks
+│   │
+│   ├── package.json
+│   └── vite.config.ts
 │
 ├── PROMPT_ENGINEERING.md      # Prompt engineering documentation
 ├── ARCHITECTURE.md            # System architecture
@@ -59,38 +81,81 @@ legal_ai/
 ### Prerequisites
 
 - Python 3.9 or higher
+- Node.js 18 or higher
 - OpenAI API key
 
-### Installation
+### 1. Backend Setup
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd legal_ai
+```bash
+# Navigate to backend
+cd backend
+
+# Create virtual environment and install dependencies
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env and add your OpenAI API key:
+# OPENAI_API_KEY=sk-your-api-key-here
+
+# Run the server
+python app.py
+```
+
+Backend runs at: **http://localhost:5000**
+
+### 2. Frontend Setup
+
+```bash
+# Navigate to frontend (in a new terminal)
+cd frontend
+
+# Install dependencies
+npm install
+
+# Configure environment (optional)
+cp .env.example .env
+# Default API URL is http://localhost:5000
+
+# Run the development server
+npm run dev
+```
+
+Frontend runs at: **http://localhost:5173**
+
+### 3. Open the Application
+
+Open your browser and navigate to **http://localhost:5173**
+
+---
+
+## Usage
+
+### Basic Conversation Flow
+
+1. **Start a conversation** with a request like:
+   ```
+   I need an NDA between TechCorp Inc and StartupXYZ
    ```
 
-2. **Set up the backend**
-   ```bash
-   cd backend
-   make setup
-   ```
-   This creates a virtual environment and installs dependencies.
+2. **Provide information** as the system asks:
+   - Party names
+   - Type of confidential information
+   - Duration
+   - Governing law
 
-3. **Configure environment**
-   ```bash
-   cp .env.example .env
+3. **Review the generated document** in the preview panel
+
+4. **Request revisions** if needed:
    ```
-   Edit `.env` and add your OpenAI API key:
-   ```
-   OPENAI_API_KEY=sk-your-api-key-here
+   Change the duration to 5 years
    ```
 
-4. **Run the server**
-   ```bash
-   source venv/bin/activate
-   make dev
-   ```
-   Server runs at `http://localhost:5000`
+5. **Export** the document as PDF, Word, or TXT
+
+---
 
 ## API Endpoints
 
@@ -99,51 +164,18 @@ legal_ai/
 curl http://localhost:5000/
 ```
 
-### Chat (Conversational)
+### Chat (Non-streaming)
 ```bash
 curl -X POST http://localhost:5000/api/chat/ \
   -H "Content-Type: application/json" \
   -d '{"message": "I need an NDA between Apple and Google"}'
 ```
 
-### Chat with Streaming
+### Chat with Streaming (SSE)
 ```bash
 curl -X POST http://localhost:5000/api/chat/stream \
   -H "Content-Type: application/json" \
   -d '{"message": "I need an NDA between Apple and Google"}'
-```
-
-### Generate Single Section
-```bash
-curl -X POST http://localhost:5000/api/generate-section \
-  -H "Content-Type: application/json" \
-  -d '{
-    "section_type": "obligations",
-    "context": {
-      "document_type": "NDA",
-      "party_a_name": "Apple Inc.",
-      "party_b_name": "Google LLC",
-      "confidential_info_type": "source code and algorithms",
-      "duration": "2 years",
-      "governing_law": "California"
-    }
-  }'
-```
-
-### Generate Full Document
-```bash
-curl -X POST http://localhost:5000/api/generate-document-sync \
-  -H "Content-Type: application/json" \
-  -d '{
-    "context": {
-      "document_type": "NDA",
-      "party_a_name": "Apple Inc.",
-      "party_b_name": "Google LLC",
-      "confidential_info_type": "source code and algorithms",
-      "duration": "2 years",
-      "governing_law": "California"
-    }
-  }'
 ```
 
 ### Get Conversation State
@@ -158,53 +190,81 @@ curl -X POST http://localhost:5000/api/chat/reset \
   -d '{"session_id": "default"}'
 ```
 
-## Conversation Flow
+### Export Document (PDF)
+```bash
+curl -X POST http://localhost:5000/api/export/pdf \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Document content...", "title": "NDA Agreement"}' \
+  --output document.pdf
+```
 
-1. **Intake Phase**: System gathers required information
-   - Party names
-   - Type of confidential information
-   - Duration
-   - Governing law
+### Export Document (Word)
+```bash
+curl -X POST http://localhost:5000/api/export/docx \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Document content...", "title": "NDA Agreement"}' \
+  --output document.docx
+```
 
-2. **Clarification Phase**: System verifies collected data
-   - Checks for conflicts
-   - Confirms understanding
+---
 
-3. **Generation Phase**: Document is created
-   - Section-by-section generation
-   - Selective reflection on critical sections
+## Conversation Phases
 
-4. **Revision Phase**: User can request changes
-   - Modify specific sections
-   - Regenerate as needed
+| Phase | Description |
+|-------|-------------|
+| **Intake** | System gathers required information through conversation |
+| **Clarification** | System verifies collected data and resolves conflicts |
+| **Generation** | Document is created section by section |
+| **Revision** | User can request changes to the generated document |
+
+---
 
 ## Advanced Features
 
 ### Selective Reflection
 
-Critical sections use a generate-reflect loop for quality assurance:
+Critical sections use a generate-reflect loop for quality assurance. The system automatically determines which sections need reflection based on document type:
 
+**NDA Document:**
 | Section | Uses Reflection | Max Iterations |
 |---------|-----------------|----------------|
 | header | No | 1 |
 | parties | No | 1 |
 | confidential_info | Yes | 3 |
 | obligations | Yes | 3 |
+| exclusions | Yes | 2 |
 | remedies | Yes | 2 |
 
 ### Function Calling
 
-The system uses 5 core functions:
+The system uses structured function calling for data extraction:
 
-1. `analyze_request` - Parse user intent
-2. `extract_structured_data` - Extract typed data
-3. `validate_completeness` - Check if ready to generate
-4. `generate_document_section` - Create document sections
-5. `apply_revision` - Modify existing document
+| Function | Purpose |
+|----------|---------|
+| `analyze_request` | Parse user intent and detect document type |
+| `extract_structured_data` | Extract typed data from conversation |
+| `validate_completeness` | Check if ready to generate |
+| `generate_document_section` | Create document sections |
+| `generate_full_document` | Generate complete document |
+| `apply_revision` | Modify existing document |
+
+### SSE Event Types
+
+| Event | Description |
+|-------|-------------|
+| `message` | Streaming text content |
+| `function_call` | LLM invoking a tool |
+| `function_result` | Tool execution result |
+| `document_update` | Document content changed |
+| `metadata` | Token counts, timing info |
+| `error` | Error with recovery info |
+| `done` | Stream complete |
+
+---
 
 ## Configuration
 
-Environment variables (`.env`):
+### Backend Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -212,42 +272,73 @@ Environment variables (`.env`):
 | `OPENAI_MODEL` | Model to use | `gpt-4o` |
 | `MAX_TOKENS` | Max response tokens | `4096` |
 | `FLASK_DEBUG` | Debug mode | `1` |
-| `CORS_ORIGINS` | Allowed origins | `http://localhost:3000` |
+| `CORS_ORIGINS` | Allowed origins | `http://localhost:5173` |
+
+### Frontend Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `VITE_API_BASE_URL` | Backend API URL | `http://localhost:5000` |
+
+---
 
 ## Development
 
-### Available Make Commands
+### Backend Commands
 
 ```bash
-make setup    # Create venv and install dependencies
-make dev      # Run development server
-make run      # Run production server
-make clean    # Remove venv and cache files
-make test     # Run tests
+cd backend
+source venv/bin/activate
+
+# Run development server
+python app.py
+
+# Or with make
+make dev
 ```
 
-### Project Architecture
+### Frontend Commands
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system design.
+```bash
+cd frontend
 
-### Prompt Engineering
+# Development server
+npm run dev
 
-See [PROMPT_ENGINEERING.md](./PROMPT_ENGINEERING.md) for prompt design documentation.
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+
+# Lint
+npm run lint
+```
+
+---
 
 ## Documentation
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture and data flows
-- [PROMPT_ENGINEERING.md](./PROMPT_ENGINEERING.md) - Prompt engineering approach
+- [PROMPT_ENGINEERING.md](./PROMPT_ENGINEERING.md) - Prompt engineering approach and iterations
 
-## Assumptions and Decisions
+---
 
-1. **Document Type**: Currently focused on NDA generation. Architecture supports extension to other document types.
+## Design Decisions
 
-2. **No Authentication**: As per requirements, no auth is implemented. In production, add JWT or session-based auth.
+1. **Hierarchical Prompts**: 4-layer architecture allows for separation of concerns and dynamic composition based on conversation state.
 
-3. **In-Memory State**: Session state is stored in memory. For production, use Redis or database.
+2. **Selective Reflection**: Only critical sections (obligations, remedies) use the generate-reflect loop, balancing quality with response time.
 
-4. **Single Document Type**: While architecture supports multiple types, only NDA is fully implemented.
+3. **Function Calling**: Structured data extraction ensures consistent state management and enables the LLM to update the conversation state.
+
+4. **SSE Streaming**: Real-time token streaming provides better UX than waiting for complete responses.
+
+5. **In-Memory State**: Session state is stored in memory for simplicity. For production, use Redis or a database.
+
+6. **No Authentication**: Not implemented as per requirements. Add JWT or session-based auth for production.
+
+---
 
 ## License
 
